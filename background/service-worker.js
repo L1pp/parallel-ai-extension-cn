@@ -2,38 +2,8 @@ const APP_PATH = "multi-panel/index.html";
 const CONTEXT_MENU_ID = "open-parallel-ai";
 const PENDING_MULTI_PANEL_ACTION_KEY = "pendingMultiPanelAction";
 const MIMO_COOKIE_HOST = "aistudio.xiaomimimo.com";
-const MIMO_COOKIE_ORIGIN = `https://${MIMO_COOKIE_HOST}`;
-
-const MIMO_ANALYTICS_COOKIE_PREFIXES = [
-  "_ga",
-  "_gid",
-  "_gat",
-  "_clck",
-  "_clsk",
-  "mistat",
-  "onetrack",
-  "sensors",
-  "Hm_",
-];
-
-function shouldSyncMiMoCookie(cookie) {
-  if (!cookie?.name || !cookie.secure) {
-    return false;
-  }
-
-  return !MIMO_ANALYTICS_COOKIE_PREFIXES.some((prefix) =>
-    cookie.name.startsWith(prefix),
-  );
-}
-
-function getMiMoCookieIdentity(cookie) {
-  return `${cookie.name}\n${cookie.path || "/"}`;
-}
-
-function getMiMoCookieUrl(cookie) {
-  const path = cookie.path?.startsWith("/") ? cookie.path : "/";
-  return `${MIMO_COOKIE_ORIGIN}${path}`;
-}
+const MIMO_COOKIE_ORIGIN = `https://${MIMO_COOKIE_HOST}/`;
+const MIMO_PUBLIC_AUTH_COOKIE = "xiaomichatbot_ph";
 
 async function syncMiMoCookiesToFrame(sender) {
   const tabId = sender?.tab?.id;
@@ -48,57 +18,67 @@ async function syncMiMoCookiesToFrame(sender) {
   }
 
   try {
-    const partitionKey = await chrome.cookies.getPartitionKey({ tabId, frameId });
+    // Chrome returns a wrapper object here, not the partition key directly.
+    // Keeping this destructuring explicit prevents silently writing to the
+    // wrong cookie jar when the API shape is mocked or changes.
+    const { partitionKey } = await chrome.cookies.getPartitionKey({
+      tabId,
+      frameId,
+    });
     if (!partitionKey?.topLevelSite?.startsWith("chrome-extension://")) {
-      return { supported: true, changed: false, copied: 0 };
+      return { supported: false, found: false, changed: false };
     }
 
-    const [sourceCookies, partitionedCookies] = await Promise.all([
-      chrome.cookies.getAll({ url: MIMO_COOKIE_ORIGIN }),
-      chrome.cookies.getAll({
-        url: MIMO_COOKIE_ORIGIN,
-        partitionKey,
-      }),
-    ]);
-    const partitionedByIdentity = new Map(
-      partitionedCookies.map((cookie) => [getMiMoCookieIdentity(cookie), cookie]),
-    );
-
-    let copied = 0;
-    for (const cookie of sourceCookies) {
-      if (!shouldSyncMiMoCookie(cookie)) {
-        continue;
-      }
-
-      const existing = partitionedByIdentity.get(getMiMoCookieIdentity(cookie));
-      if (existing?.value === cookie.value) {
-        continue;
-      }
-
-      const details = {
-        url: getMiMoCookieUrl(cookie),
-        name: cookie.name,
-        value: cookie.value,
-        path: cookie.path || "/",
-        secure: true,
-        httpOnly: cookie.httpOnly,
-        sameSite: "no_restriction",
-        storeId: cookie.storeId,
-        partitionKey,
-      };
-      if (!cookie.session && typeof cookie.expirationDate === "number") {
-        details.expirationDate = cookie.expirationDate;
-      }
-
-      const result = await chrome.cookies.set(details);
-      if (result) {
-        copied += 1;
-      }
+    // Network requests from an extension-owned iframe can use the first-party
+    // MiMo cookie jar because the extension has host permission. JavaScript
+    // document.cookie is still partitioned, however. MiMo reads this one
+    // non-HttpOnly value and appends it to every POST request, so mirror only
+    // that value rather than copying the user's full login cookie set.
+    const sourceCookie = await chrome.cookies.get({
+      url: MIMO_COOKIE_ORIGIN,
+      name: MIMO_PUBLIC_AUTH_COOKIE,
+    });
+    if (!sourceCookie?.value) {
+      return { supported: true, found: false, changed: false };
     }
 
-    return { supported: true, changed: copied > 0, copied };
+    const partitionedCookie = await chrome.cookies.get({
+      url: MIMO_COOKIE_ORIGIN,
+      name: MIMO_PUBLIC_AUTH_COOKIE,
+      storeId: sourceCookie.storeId,
+      partitionKey,
+    });
+    if (partitionedCookie?.value === sourceCookie.value) {
+      return { supported: true, found: true, changed: false };
+    }
+
+    const details = {
+      url: MIMO_COOKIE_ORIGIN,
+      name: MIMO_PUBLIC_AUTH_COOKIE,
+      value: sourceCookie.value,
+      path: sourceCookie.path || "/",
+      secure: true,
+      // MiMo must be able to read this value through document.cookie.
+      httpOnly: false,
+      sameSite: "no_restriction",
+      storeId: sourceCookie.storeId,
+      partitionKey,
+    };
+    if (
+      !sourceCookie.session &&
+      typeof sourceCookie.expirationDate === "number"
+    ) {
+      details.expirationDate = sourceCookie.expirationDate;
+    }
+
+    const result = await chrome.cookies.set(details);
+    return {
+      supported: true,
+      found: true,
+      changed: Boolean(result),
+    };
   } catch {
-    return { supported: true, changed: false, copied: 0 };
+    return { supported: true, found: false, changed: false };
   }
 }
 

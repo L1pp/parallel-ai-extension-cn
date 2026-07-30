@@ -227,7 +227,9 @@ export function installChromeMock(): void {
       get: vi.fn(() => Promise.resolve(null)),
       getAll: vi.fn(() => Promise.resolve([])),
       getPartitionKey: vi.fn(() =>
-        Promise.resolve({ topLevelSite: "chrome-extension://test" }),
+        Promise.resolve({
+          partitionKey: { topLevelSite: "chrome-extension://test" },
+        }),
       ),
       set: vi.fn(() => Promise.resolve(null)),
       remove: vi.fn(() => Promise.resolve(null)),
