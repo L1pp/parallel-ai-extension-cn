@@ -1,6 +1,106 @@
 const APP_PATH = "multi-panel/index.html";
 const CONTEXT_MENU_ID = "open-parallel-ai";
 const PENDING_MULTI_PANEL_ACTION_KEY = "pendingMultiPanelAction";
+const MIMO_COOKIE_HOST = "aistudio.xiaomimimo.com";
+const MIMO_COOKIE_ORIGIN = `https://${MIMO_COOKIE_HOST}`;
+
+const MIMO_ANALYTICS_COOKIE_PREFIXES = [
+  "_ga",
+  "_gid",
+  "_gat",
+  "_clck",
+  "_clsk",
+  "mistat",
+  "onetrack",
+  "sensors",
+  "Hm_",
+];
+
+function shouldSyncMiMoCookie(cookie) {
+  if (!cookie?.name || !cookie.secure) {
+    return false;
+  }
+
+  return !MIMO_ANALYTICS_COOKIE_PREFIXES.some((prefix) =>
+    cookie.name.startsWith(prefix),
+  );
+}
+
+function getMiMoCookieIdentity(cookie) {
+  return `${cookie.name}\n${cookie.path || "/"}`;
+}
+
+function getMiMoCookieUrl(cookie) {
+  const path = cookie.path?.startsWith("/") ? cookie.path : "/";
+  return `${MIMO_COOKIE_ORIGIN}${path}`;
+}
+
+async function syncMiMoCookiesToFrame(sender) {
+  const tabId = sender?.tab?.id;
+  const frameId = sender?.frameId;
+
+  if (
+    !chrome.cookies?.getPartitionKey ||
+    typeof tabId !== "number" ||
+    typeof frameId !== "number"
+  ) {
+    return { supported: false, changed: false, copied: 0 };
+  }
+
+  try {
+    const partitionKey = await chrome.cookies.getPartitionKey({ tabId, frameId });
+    if (!partitionKey?.topLevelSite?.startsWith("chrome-extension://")) {
+      return { supported: true, changed: false, copied: 0 };
+    }
+
+    const [sourceCookies, partitionedCookies] = await Promise.all([
+      chrome.cookies.getAll({ url: MIMO_COOKIE_ORIGIN }),
+      chrome.cookies.getAll({
+        url: MIMO_COOKIE_ORIGIN,
+        partitionKey,
+      }),
+    ]);
+    const partitionedByIdentity = new Map(
+      partitionedCookies.map((cookie) => [getMiMoCookieIdentity(cookie), cookie]),
+    );
+
+    let copied = 0;
+    for (const cookie of sourceCookies) {
+      if (!shouldSyncMiMoCookie(cookie)) {
+        continue;
+      }
+
+      const existing = partitionedByIdentity.get(getMiMoCookieIdentity(cookie));
+      if (existing?.value === cookie.value) {
+        continue;
+      }
+
+      const details = {
+        url: getMiMoCookieUrl(cookie),
+        name: cookie.name,
+        value: cookie.value,
+        path: cookie.path || "/",
+        secure: true,
+        httpOnly: cookie.httpOnly,
+        sameSite: "no_restriction",
+        storeId: cookie.storeId,
+        partitionKey,
+      };
+      if (!cookie.session && typeof cookie.expirationDate === "number") {
+        details.expirationDate = cookie.expirationDate;
+      }
+
+      const result = await chrome.cookies.set(details);
+      if (result) {
+        copied += 1;
+      }
+    }
+
+    return { supported: true, changed: copied > 0, copied };
+  } catch {
+    return { supported: true, changed: false, copied: 0 };
+  }
+}
 
 // The Claude pane runs claude.ai in a cross-origin iframe whose cookie jar is
 // empty (Chrome partitions storage for embedded third-party frames), so
@@ -45,6 +145,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "SYNC_CLAUDE_WORKSPACE") {
     publishClaudeWorkspace().then((uuid) => sendResponse({ uuid }));
     return true; // keep the message channel open for the async response
+  }
+  if (message?.type === "SYNC_MIMO_COOKIE_PARTITION") {
+    syncMiMoCookiesToFrame(_sender).then(sendResponse);
+    return true;
   }
   return undefined;
 });
