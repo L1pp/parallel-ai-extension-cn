@@ -79,6 +79,12 @@
       'div[contenteditable="true"][role="textbox"]',
       'div[contenteditable="true"]'
     ],
+    mimo: [
+      'textarea[placeholder*="有问题"]',
+      'textarea[placeholder*="Ask me anything"]',
+      'textarea[placeholder*="Shift"]',
+      'textarea'
+    ],
     meta: [
       'textarea[placeholder*="Ask"]',
       'textarea[aria-label*="Ask"]',
@@ -116,6 +122,7 @@
     deepseek: true,
     kimi: true,  // Kimi supports images
     qwen: true,
+    mimo: true,
     meta: true,
     google: true  // Google AI Mode supports images
   };
@@ -129,6 +136,7 @@
     deepseek: ['input[type="file"]'],
     kimi: ['input[type="file"]'],
     qwen: ['input[type="file"]'],
+    mimo: ['input[type="file"]'],
     meta: ['input[type="file"]'],
     google: ['input[type="file"]']
   };
@@ -147,6 +155,12 @@
       'button[aria-label*="Add file"]',
       'button[title*="Attach"]',
       'button[title*="Upload"]',
+      'button[type="button"]:has(input[type="file"])'
+    ],
+    mimo: [
+      'button[data-track-id="file_bar_upload_btn"]',
+      'button[aria-label="Upload file"]',
+      'button[aria-label*="上传"]',
       'button[type="button"]:has(input[type="file"])'
     ],
     meta: [
@@ -233,6 +247,14 @@
       '[role="button"][title*="send" i]',
       '[class*="send"][role="button"]',
       'form button:has(svg)'
+    ],
+    mimo: [
+      'button[data-track-id*="send" i]',
+      'button[aria-label="Send message"]',
+      'button[aria-label="发送消息"]',
+      'button[aria-label="Send"]',
+      'button[type="submit"]',
+      'form button:not([disabled]):not([aria-disabled="true"]):has(svg)'
     ],
     meta: [
       'button[aria-label="Send"]',
@@ -449,6 +471,7 @@
     deepseek: 'https://chat.deepseek.com/',
     kimi: 'https://www.kimi.com/',
     qwen: 'https://chat.qwen.ai/',
+    mimo: 'https://aistudio.xiaomimimo.com/',
     meta: 'https://www.meta.ai/',
     google: 'https://www.google.com/search?udm=50'
   };
@@ -502,6 +525,8 @@
       return 'kimi';
     } else if (hostname.includes('chat.qwen.ai')) {
       return 'qwen';
+    } else if (hostname.includes('aistudio.xiaomimimo.com')) {
+      return 'mimo';
     } else if (hostname.includes('meta.ai')) {
       return 'meta';
     } else if (hostname.includes('google.com') || hostname.includes('google.') || hostname === 'www.google.com') {
@@ -1433,7 +1458,7 @@
   }
 
   function hasResilientProviderLifecycle(provider) {
-    return provider === 'deepseek' || provider === 'kimi' || provider === 'qwen' || provider === 'meta';
+    return provider === 'deepseek' || provider === 'kimi' || provider === 'qwen' || provider === 'mimo' || provider === 'meta';
   }
 
   function getProviderNoBusyTimeout(provider) {
@@ -2121,7 +2146,7 @@
   }
 
   function getProviderAutoSubmitDelay(provider) {
-    return provider === 'deepseek' || provider === 'qwen' || provider === 'meta'
+    return provider === 'deepseek' || provider === 'qwen' || provider === 'mimo' || provider === 'meta'
       ? 800
       : 500;
   }
@@ -2190,7 +2215,7 @@
   }
 
   function trySendWithEnterFallback(provider, providerMode = null) {
-    const enterFallbackProviders = ['deepseek', 'kimi', 'qwen', 'meta'];
+    const enterFallbackProviders = ['deepseek', 'kimi', 'qwen', 'mimo', 'meta'];
     if (!enterFallbackProviders.includes(provider)) {
       return false;
     }
