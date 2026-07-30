@@ -151,7 +151,7 @@ describe("useProviderFramesController", () => {
         payload: 1,
         context: "multi-panel",
       }),
-      "*",
+      "https://chatgpt.com",
     );
   });
 
@@ -172,7 +172,7 @@ describe("useProviderFramesController", () => {
     });
     expect(postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ type: "REQUEST_INPUT_ANCHOR" }),
-      "*",
+      "https://chatgpt.com",
     );
   });
 

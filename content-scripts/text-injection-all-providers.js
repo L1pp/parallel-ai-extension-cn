@@ -15,6 +15,13 @@
   const PARALLEL_AI_PROVIDER_TITLE = 'PARALLEL_AI_PROVIDER_TITLE';
   const PARALLEL_AI_TEMP_CHAT_ENABLED = 'PARALLEL_AI_TEMP_CHAT_ENABLED';
   const PARALLEL_AI_TEMP_CHAT_DISABLED = 'PARALLEL_AI_TEMP_CHAT_DISABLED';
+  const MULTI_PANEL_EXTENSION_ORIGIN = (() => {
+    try {
+      return chrome.runtime.getURL('/').replace(/\/+$/, '');
+    } catch {
+      return null;
+    }
+  })();
   const CHATGPT_STOP_BUTTON_SELECTOR = 'button[data-testid="stop-button"]';
   const CHATGPT_SEND_TRACKING_IDLE_DELAY_MS = 800;
   const CHATGPT_SEND_TRACKING_NO_BUSY_TIMEOUT_MS = 2000;
@@ -44,6 +51,13 @@
     if (TEXT_INJECTION_DEBUG) {
       console.debug(...args);
     }
+  }
+
+  function isTrustedMultiPanelMessage(event) {
+    return Boolean(
+      MULTI_PANEL_EXTENSION_ORIGIN &&
+      event.origin === MULTI_PANEL_EXTENSION_ORIGIN
+    );
   }
 
   // Provider-specific selectors
@@ -838,7 +852,7 @@
       anchor,
       reason,
       context: MULTI_PANEL_PROVIDER_STATUS_CONTEXT
-    }, '*');
+    }, MULTI_PANEL_EXTENSION_ORIGIN);
   }
 
   function scheduleProviderInputAnchorReport(reason = 'mutation', providerMode = null) {
@@ -902,7 +916,7 @@
       type: PARALLEL_AI_PROVIDER_URL,
       url,
       context: MULTI_PANEL_PROVIDER_STATUS_CONTEXT
-    }, '*');
+    }, MULTI_PANEL_EXTENSION_ORIGIN);
   }
 
   const initialProviderDocumentTitle = (document.title || '').trim();
@@ -927,7 +941,7 @@
       title,
       initialTitle: initialProviderDocumentTitle,
       context: MULTI_PANEL_PROVIDER_STATUS_CONTEXT
-    }, '*');
+    }, MULTI_PANEL_EXTENSION_ORIGIN);
   }
 
   function startProviderDocumentTitleTracking() {
@@ -997,7 +1011,7 @@
       provider,
       phase,
       context: MULTI_PANEL_PROVIDER_STATUS_CONTEXT
-    }, '*');
+    }, MULTI_PANEL_EXTENSION_ORIGIN);
   }
 
   function postTemporaryChatEnabled(provider = detectProvider()) {
@@ -1009,7 +1023,7 @@
       type: PARALLEL_AI_TEMP_CHAT_ENABLED,
       provider,
       context: MULTI_PANEL_PROVIDER_STATUS_CONTEXT
-    }, '*');
+    }, MULTI_PANEL_EXTENSION_ORIGIN);
   }
 
   function postTemporaryChatDisabled(provider = detectProvider()) {
@@ -1021,7 +1035,7 @@
       type: PARALLEL_AI_TEMP_CHAT_DISABLED,
       provider,
       context: MULTI_PANEL_PROVIDER_STATUS_CONTEXT
-    }, '*');
+    }, MULTI_PANEL_EXTENSION_ORIGIN);
   }
 
   function stopMultiPanelUserInteractionTracking() {
@@ -3063,6 +3077,10 @@
   function handleTextInjection(event) {
     // Validate event data structure
     if (!event || !event.data || typeof event.data !== 'object') {
+      return;
+    }
+
+    if (event.data.context === 'multi-panel' && !isTrustedMultiPanelMessage(event)) {
       return;
     }
 

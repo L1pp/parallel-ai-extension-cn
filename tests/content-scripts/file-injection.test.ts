@@ -20,6 +20,8 @@ function postInject(files: Array<{ name: string; type?: string; dataUrl: string 
   window.dispatchEvent(
     new MessageEvent("message", {
       data: { type: "INJECT_FILES", context: "multi-panel", files },
+      origin: chrome.runtime.getURL("/").replace(/\/+$/, ""),
+      source: window.parent,
     }),
   );
 }

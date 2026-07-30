@@ -9,6 +9,7 @@ import type {
   QueuedFile,
 } from "@/multi-panel/types";
 import type { ProviderId } from "@/shared/lib/providers";
+import { getProviderMessageOrigin } from "@/multi-panel/lib/provider-message-origin";
 import type { GoogleProviderMode, PanelProviderSlot } from "@/shared/lib/settings";
 
 const MULTI_PANEL_PROVIDER_STATUS_CONTEXT = "multi-panel-provider-status";
@@ -487,13 +488,19 @@ export function useConnectorController({
           continue;
         }
 
-        frameRefs.current[providerId]?.contentWindow?.postMessage(
+        const frame = frameRefs.current[providerId];
+        const targetOrigin = getProviderMessageOrigin(providerId, frame);
+        if (!targetOrigin) {
+          continue;
+        }
+
+        frame?.contentWindow?.postMessage(
           {
             type: "SYNC_SCROLL",
             context: "multi-panel",
             progress: event.data.progress,
           },
-          "*",
+          targetOrigin,
         );
       }
     }

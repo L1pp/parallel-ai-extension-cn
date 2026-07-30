@@ -25,6 +25,15 @@ describe("scroll-sync", () => {
     resetEnterBehaviorGlobals();
   });
 
+  function dispatchRemoteScroll(progress: unknown) {
+    const event = new MessageEvent("message", {
+      data: { type: "SYNC_SCROLL", context: "multi-panel", progress },
+      origin: chrome.runtime.getURL("/").replace(/\/+$/, ""),
+    });
+    Object.defineProperty(event, "source", { value: window.parent });
+    window.dispatchEvent(event);
+  }
+
   it("applies a SYNC_SCROLL message by adjusting the scrollingElement's scrollTop", () => {
     const scroller = document.scrollingElement as HTMLElement | null;
     if (!scroller) {
@@ -38,11 +47,7 @@ describe("scroll-sync", () => {
 
     loadContentScript("scroll-sync.js");
 
-    window.dispatchEvent(
-      new MessageEvent("message", {
-        data: { type: "SYNC_SCROLL", context: "multi-panel", progress: 0.5 },
-      }),
-    );
+    dispatchRemoteScroll(0.5);
 
     expect(setTopSpy).toHaveBeenCalled();
     const arg = setTopSpy.mock.calls[0]?.[0] as { top: number };
@@ -54,11 +59,7 @@ describe("scroll-sync", () => {
     loadContentScript("scroll-sync.js");
     const setTopSpy = vi.spyOn(window, "scrollTo");
 
-    window.dispatchEvent(
-      new MessageEvent("message", {
-        data: { type: "SYNC_SCROLL", context: "multi-panel", progress: "not-a-number" },
-      }),
-    );
+    dispatchRemoteScroll("not-a-number");
 
     expect(setTopSpy).not.toHaveBeenCalled();
   });
@@ -88,11 +89,7 @@ describe("scroll-sync", () => {
     const setTopSpy = vi.spyOn(window, "scrollTo");
 
     loadContentScript("scroll-sync.js");
-    window.dispatchEvent(
-      new MessageEvent("message", {
-        data: { type: "SYNC_SCROLL", context: "multi-panel", progress: 2 },
-      }),
-    );
+    dispatchRemoteScroll(2);
 
     const arg = setTopSpy.mock.calls.at(-1)?.[0] as { top: number };
     expect(arg.top).toBe(1200);
@@ -130,7 +127,7 @@ describe("scroll-sync", () => {
         context: "multi-panel",
         progress: expect.any(Number),
       }),
-      "*",
+      "chrome-extension://test",
     );
   });
 
@@ -138,11 +135,7 @@ describe("scroll-sync", () => {
     loadContentScript("scroll-sync.js");
     postMessage.mockClear();
 
-    window.dispatchEvent(
-      new MessageEvent("message", {
-        data: { type: "SYNC_SCROLL", context: "multi-panel", progress: 0.25 },
-      }),
-    );
+    dispatchRemoteScroll(0.25);
     document.dispatchEvent(new Event("scroll", { bubbles: true }));
 
     expect(postMessage).not.toHaveBeenCalled();

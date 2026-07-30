@@ -1,6 +1,14 @@
 (function () {
   "use strict";
 
+  const MULTI_PANEL_EXTENSION_ORIGIN = (() => {
+    try {
+      return chrome.runtime.getURL("/").replace(/\/+$/, "");
+    } catch {
+      return null;
+    }
+  })();
+
   const MIN_SCROLL_RANGE = 80;
   const SAMPLE_POINTS = [
     [0.5, 0.35],
@@ -174,6 +182,10 @@
   }
 
   function postScrollProgress(scroller) {
+    if (!MULTI_PANEL_EXTENSION_ORIGIN || window.parent === window) {
+      return;
+    }
+
     const metrics = getScrollerMetrics(scroller);
     const progress = metrics.maxScrollTop === 0 ? 0 : metrics.scrollTop / metrics.maxScrollTop;
 
@@ -183,7 +195,7 @@
         context: "multi-panel",
         progress,
       },
-      "*",
+      MULTI_PANEL_EXTENSION_ORIGIN,
     );
   }
 
@@ -234,6 +246,13 @@
 
   function handleRemoteScroll(event) {
     if (!event?.data || event.data.type !== "SYNC_SCROLL" || event.data.context !== "multi-panel") {
+      return;
+    }
+
+    if (
+      !MULTI_PANEL_EXTENSION_ORIGIN ||
+      event.origin !== MULTI_PANEL_EXTENSION_ORIGIN
+    ) {
       return;
     }
 

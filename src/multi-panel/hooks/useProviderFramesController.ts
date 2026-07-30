@@ -5,6 +5,7 @@ import { getProviderById, type Provider, type ProviderId } from "@/shared/lib/pr
 import type { GoogleProviderMode, PanelProviderSlot } from "@/shared/lib/settings";
 import type { ResolvedTheme } from "@/shared/lib/theme";
 import { getActivePanelProviders, getPanelUrl } from "@/multi-panel/lib/panel-layout";
+import { getProviderMessageOrigin } from "@/multi-panel/lib/provider-message-origin";
 
 const EMPTY_RESTORED_URLS: Partial<Record<ProviderId, string>> = {};
 
@@ -51,13 +52,19 @@ export function useProviderFramesController({
     providerId: ProviderId,
     payload: Record<string, unknown>,
   ) {
-    frameRefs.current[providerId]?.contentWindow?.postMessage(
+    const frame = frameRefs.current[providerId];
+    const targetOrigin = getProviderMessageOrigin(providerId, frame);
+    if (!targetOrigin) {
+      return;
+    }
+
+    frame?.contentWindow?.postMessage(
       {
         ...payload,
         context: "multi-panel",
         providerMode: googleProviderMode,
       },
-      "*",
+      targetOrigin,
     );
   }
 

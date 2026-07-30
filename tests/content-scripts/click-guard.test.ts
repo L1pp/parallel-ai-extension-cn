@@ -137,6 +137,7 @@ describe("NEW_CHAT message does not click an off-site banner link", () => {
     window.dispatchEvent(
       new MessageEvent("message", {
         data: { type: "NEW_CHAT", context: "multi-panel" },
+        origin: chrome.runtime.getURL("/").replace(/\/+$/, ""),
       }),
     );
 

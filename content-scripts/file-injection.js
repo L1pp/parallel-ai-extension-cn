@@ -1,6 +1,14 @@
 (function () {
   "use strict";
 
+  const MULTI_PANEL_EXTENSION_ORIGIN = (() => {
+    try {
+      return chrome.runtime.getURL("/").replace(/\/+$/, "");
+    } catch {
+      return null;
+    }
+  })();
+
   const FILE_INPUT_SELECTORS = {
     chatgpt: ['input[type="file"][data-testid="file-upload-input"]', 'input[type="file"]'],
     claude: ['input[type="file"]'],
@@ -392,6 +400,13 @@
 
   async function injectFiles(event) {
     if (!event?.data || event.data.type !== "INJECT_FILES" || event.data.context !== "multi-panel") {
+      return;
+    }
+
+    if (
+      !MULTI_PANEL_EXTENSION_ORIGIN ||
+      event.origin !== MULTI_PANEL_EXTENSION_ORIGIN
+    ) {
       return;
     }
 
